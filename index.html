@@ -127,7 +127,7 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
 <script>
 (() => {
   // Answers go to a Google Sheet through an Apps Script web app (USER 2026-10-22); ?api= overrides it for testing.
-  const API = new URLSearchParams(location.search).get("api") || "%%API%%";
+  const API = new URLSearchParams(location.search).get("api") || "https://script.google.com/macros/s/AKfycbwzawhRMSQeCDN4xZAZ3xTC9r8Pcji4243XuupgXFokxpQHe6xSrZ-2YJWUNAmSU5OWag/exec";
   // Part order is fixed: ISP first, then retouching.
   const ORDER = ["isp", "retouching"];
   const PART = {
