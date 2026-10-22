@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>照片偏好測驗</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+/* Layout: one centred column of text; the trial screen widens to a three-up row of photos on a fixed mid-grey stage. */
+:root {
+  --bg: #f3f4f6; --fg: #1d2129; --muted: #5b6270; --line: #d5d9e0; --card: #ffffff;
+  --accent: #2f5d8a; --accent-fg: #ffffff; --pick: #f2b134; --stage: #808080;
+  --sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #16191e; --fg: #e6e8ec; --muted: #9aa1ad; --line: #2c313a; --card: #1f232a;
+  --accent: #7fb0e0; --accent-fg: #0f1720; --pick: #f2b134; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #16191e; --fg: #e6e8ec; --muted: #9aa1ad; --line: #2c313a; --card: #1f232a;
+  --accent: #7fb0e0; --accent-fg: #0f1720; --pick: #f2b134; color-scheme: dark }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 16px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 640px; margin: 0 auto; padding-block: 40px 56px; display: grid; gap: 20px; }
+h1 { font-size: 1.6rem; line-height: 1.3; margin: 0; text-wrap: balance; }
+h2 { font-size: 1.15rem; margin: 0; }
+p { margin: 0; }
+.muted { color: var(--muted); font-size: .92rem; }
+.box { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; display: grid; gap: 12px; }
+label { font-weight: 500; }
+input[type=text] { font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg); color: var(--fg); width: 100%; box-sizing: border-box; }
+button { font: inherit; cursor: pointer; border-radius: 8px; min-height: 44px; }
+.btn { background: var(--accent); color: var(--accent-fg); border: 0; padding: 10px 18px; font-weight: 500; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--pick); outline-offset: 2px; }
+ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
+.notice { border-left: 4px solid var(--pick); padding: 8px 12px; background: var(--card); }
+/* Trial screen */
+#trial { min-height: 100%; display: grid; grid-template-rows: auto 1fr auto; gap: 12px; padding-block: 12px; }
+.bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; max-width: 1400px; width: 100%; margin: 0 auto; }
+.progress { flex: 1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.progress > i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }
+.count { font-variant-numeric: tabular-nums; color: var(--muted); font-size: .9rem; white-space: nowrap; }
+.tag { font-size: .8rem; padding: 2px 8px; border-radius: 999px; background: var(--pick); color: #1d2129; }
+.question { text-align: center; font-weight: 500; max-width: 1400px; margin: 0 auto; }
+.stage { background: var(--stage); border-radius: 10px; padding: 14px; display: grid; gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; max-width: 1400px; width: 100%; margin: 0 auto;
+  box-sizing: border-box; }
+.opt { all: unset; box-sizing: border-box; cursor: pointer; display: grid; gap: 8px; justify-items: center;
+  padding: 6px; border-radius: 8px; border: 3px solid transparent; position: relative; min-width: 0; }
+.opt canvas { display: block; width: 100%; height: auto; max-height: 72vh; object-fit: contain; pointer-events: none;
+  user-select: none; }
+.opt .num { font-weight: 700; color: #ffffff; background: rgba(0,0,0,.35); border-radius: 999px; min-width: 2em;
+  text-align: center; padding: 2px 10px; }
+.opt:hover, .opt:focus-visible { border-color: rgba(255,255,255,.7); }
+.opt.picked { border-color: var(--pick); }
+.zoom { position: absolute; top: 12px; right: 12px; min-height: 36px; min-width: 36px; padding: 4px 10px;
+  background: rgba(0,0,0,.55); color: #fff; border: 0; font-size: .85rem; }
+.hint { text-align: center; }
+#viewer { position: fixed; inset: 0; background: #808080; display: grid; place-items: center; z-index: 20; cursor: zoom-out;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
+#viewer canvas { max-width: 100vw; max-height: 100vh; width: auto; height: auto; }
+#viewer span { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); right: calc(12px + env(safe-area-inset-right, 0px));
+  background: rgba(0,0,0,.55); color: #fff; padding: 4px 10px; border-radius: 6px; }
+.status { text-align: center; font-size: .8rem; margin: 0; }
+.warn { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; margin: 0; padding: 12px 16px; background: #b3261e; color: #fff; text-align: center; }
+@media (max-width: 760px) {
+  .stage { grid-template-columns: minmax(0, 1fr); padding: 10px; }
+  .opt canvas { max-height: none; }
+  .kbd { display: none; }
+}
+@media (hover: none) { .kbd { display: none; } }
+@media (prefers-reduced-motion: reduce) { .progress > i { transition: none; } }
+</style>
+</head>
+<body>
+
+
+<main id="welcome" class="wrap">
+  <h1>照片偏好測驗</h1>
+  <p>每一題會出現同一張照片的三個版本，請選出一個。測驗分成兩個部分，中間可以休息。</p>
+  <div class="box">
+    <label for="pname">你的名字或代號</label>
+    <input type="text" id="pname" autocomplete="nickname" maxlength="40" placeholder="例如：小明">
+    <p class="muted">只用來區分作答紀錄。每答一題都會立刻上傳；中途離開，用同一台裝置再打開這個網址按「開始」，就會從上次的題目繼續。</p>
+  </div>
+  <div class="box">
+    <label for="pcode">續填代碼（選填）</label>
+    <input type="text" id="pcode" autocomplete="off" maxlength="20" placeholder="換裝置繼續作答時才需要填">
+    <p class="muted" id="resumeNote">開始作答後會顯示你的續填代碼。</p>
+  </div>
+  <p id="note" class="notice" hidden></p>
+  <div><button class="btn" id="startBtn" disabled>開始</button></div>
+</main>
+
+<main id="screen" class="wrap" hidden>
+  <h1 id="screenTitle"></h1>
+  <div id="screenBody" style="display:grid; gap:12px;"></div>
+  <div><button class="btn" id="screenBtn"></button></div>
+</main>
+
+<section id="trial" hidden>
+  <div class="bar">
+    <div class="progress" aria-hidden="true"><i id="prog"></i></div>
+    <span class="count" id="count"></span>
+  </div>
+  <div style="display:grid; gap:10px; align-content:start;">
+    <p class="question" id="question"></p>
+    <div class="stage" id="stage"></div>
+    <p class="hint muted"><span class="kbd">按 1、2、3 或</span>點選圖片作答</p>
+  </div>
+  <p class="muted status" id="status"></p>
+</section>
+
+<main id="done" class="wrap" hidden>
+  <h1>完成，謝謝你</h1>
+  <p id="syncNote" class="muted">正在上傳作答…</p>
+  <div><button class="btn" id="resyncBtn" hidden>重新上傳</button></div>
+</main>
+
+<p id="warn" class="warn" role="alert" hidden></p>
+<div id="viewer" hidden><canvas id="viewerCanvas"></canvas><span>點一下關閉</span></div>
+
+<script>
+(() => {
+  // Answers go to a Google Sheet through an Apps Script web app (USER 2026-10-22); ?api= overrides it for testing.
+  const API = new URLSearchParams(location.search).get("api") || "%%API%%";
+  // Part order is fixed: ISP first, then retouching.
+  const ORDER = ["isp", "retouching"];
+  const PART = {
+    // ISP: SID "higher quality" + DeepISP factors + NTIRE 2023/24 "more pleasant" (USER 2026-10-20: fuse A and B).
+    isp: { label: "第一部分", question: "哪一張的畫質最好、看起來最舒服自然？",
+      hint: "這三張是同一張照片的不同成像結果。請考慮顏色是否自然、亮度、細節與清晰度，不要評判照片的內容或構圖。" },
+    // Retouching: 3D-LUT "select the best (visually appealing and natural) one" + RSFNet "select the best result" (USER: A).
+    retouching: { label: "第二部分", question: "請選出最好看、最自然的一張。",
+      hint: "這三張是同一張照片的不同修圖版本。依你的整體觀感選擇。" },
+  };
+  const CONTRACT = "web-2026-10-22";
+  const PERMS = ["abc", "acb", "bac", "bca", "cab", "cba"];
+  const $ = (id) => document.getElementById(id);
+  const screens = ["welcome", "screen", "trial", "done"];
+  const show = (id) => { screens.forEach((s) => { $(s).hidden = s !== id; }); window.scrollTo(0, 0); };
+  const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
+
+  let TRIALS = null, state = null, plan = null, steps = [], idx = 0, shownAt = 0, busy = false;
+  const LS = "photo_study_v1", LSQ = "photo_study_queue_v1";
+  const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+
+  function rngFrom(seedStr) {
+    let h = 2166136261;
+    for (const c of seedStr) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
+    return () => { h += 0x6D2B79F5; let t = h; t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+  function shuffle(a, r) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+  // The plan is a pure function of the seed, so a resume on any device rebuilds the same order and left/right positions.
+  function buildPlan(p, seed) {
+    const r = rngFrom(seed + ":" + p), t = TRIALS[p];
+    const main = shuffle(t.trials.map((x) => x.id), r), perm = {};
+    const offset = Math.floor(r() * 6);
+    shuffle(main.map((_, i) => i), r).forEach((k, i) => { perm[main[k]] = PERMS[(i + offset) % 6]; });
+    return { main, perm };
+  }
+  function newPid() {
+    const a = "abcdefghjkmnpqrstuvwxyz", b = new Uint8Array(8);
+    crypto.getRandomValues(b);
+    return Array.from(b, (x) => a[x % a.length]).join("");
+  }
+
+  // ---- server ----
+  async function apiGet(pid) {
+    const r = await fetch(API + (pid ? "?pid=" + encodeURIComponent(pid) : ""), { cache: "no-store" });
+    const j = await r.json();
+    if (!j.ok) throw new Error("server");
+    return j;
+  }
+  async function apiPost(body) {
+    const r = await fetch(API, { method: "POST", body: JSON.stringify(body) });  // text/plain: no CORS preflight
+    const j = await r.json();
+    if (!j.ok) throw new Error("server");
+    return j;
+  }
+  // Every write goes through a queue kept in localStorage, so nothing is lost while the network is down.
+  let queue = lsGet(LSQ) || [], flushing = false, fails = 0;
+  const base = () => ({ pid: state.pid, name: state.name, seed: state.seed, contract: state.contract,
+    started_at: state.started_at, ua: navigator.userAgent });
+  function enqueue(p) { queue.push(p); lsSet(LSQ, queue); flush(); }
+  async function flush() {
+    if (flushing) return;
+    flushing = true;
+    while (queue.length) {
+      try { await apiPost(queue[0]); queue.shift(); lsSet(LSQ, queue); fails = 0; }
+      catch (e) { fails += 1; renderStatus(); await sleep(Math.min(30000, 2000 * fails)); }
+      renderStatus();
+    }
+    flushing = false;
+    renderStatus();
+  }
+  function renderStatus() {
+    if (state) $("status").textContent = "續填代碼 " + state.pid;
+    const w = $("warn");
+    w.hidden = !(queue.length && fails >= 2);
+    w.textContent = "網路連線不穩，有 " + queue.length + " 題還沒上傳。答案先存在這台裝置，恢復連線後會自動上傳，請不要關閉這個頁面。";
+  }
+  window.addEventListener("online", flush);
+
+  function buildSteps() {
+    const out = [];
+    ORDER.forEach((p, k) => {
+      if (k > 0) out.push({ screen: "rest_" + p, part: p });
+      out.push({ screen: "intro_" + p, part: p });
+      plan[p].main.forEach((id, i) => out.push({ part: p, id, key: p + "/" + id, n: i + 1, of: plan[p].main.length }));
+    });
+    return out;
+  }
+  const codeNote = () => "<p class='notice'>你的續填代碼：<strong>" + state.pid + "</strong>。換裝置繼續作答時需要它，可以拍照或抄下來。</p>";
+
+  function screenContent(st) {
+    const P = PART[st.part], li = (t) => "<li>" + t + "</li>";
+    if (st.screen.startsWith("rest_")) return { title: "第一部分完成，休息一下",
+      body: "<p>做得很好。可以先起來走動、讓眼睛休息一兩分鐘，準備好了再繼續。</p><p class='muted'>第二部分作答方式相同，但照片類型和問題不同，請先看說明。</p>" + codeNote(), btn: "我休息好了，繼續" };
+    return { title: P.label + "：作答說明",
+      body: "<ol class='rules'>" + li("每題有三張圖，是同一張照片的三個版本，左右順序每題都不同。")
+        + li("問題是：<strong>" + P.question + "</strong>") + li(P.hint)
+        + li("點一下圖片即作答，並自動進到下一題。想看細節可按圖片角落的「放大」。") + "</ol>"
+        + "<p class='muted kbd'>鍵盤也可以作答：按 1、2、3。</p>" + codeNote(), btn: "開始作答" };
+  }
+
+  const note = (t) => { $("note").hidden = !t; $("note").textContent = t || ""; };
+  function updateStart() { $("startBtn").disabled = !($("pname").value.trim() && TRIALS); }
+  $("pname").addEventListener("input", updateStart);
+  {
+    const local = lsGet(LS), urlPid = new URLSearchParams(location.search).get("pid");
+    $("pname").value = (local && local.name) || "";
+    if (urlPid) $("pcode").value = urlPid;
+    if (local && local.pid && !local.done) $("resumeNote").textContent = "這台裝置有尚未完成的作答（代碼 " + local.pid + "），直接按「開始」就會繼續。";
+  }
+
+  $("startBtn").onclick = async () => {
+    const name = $("pname").value.trim(), code = $("pcode").value.trim().toLowerCase(), local = lsGet(LS);
+    $("startBtn").disabled = true; note("連線中…");
+    // The device's saved session is resumed only for the same name, so a second person on a shared computer starts fresh.
+    const pid = code || (local && local.contract === CONTRACT && local.name === name ? local.pid : "");
+    let remote;
+    try { remote = await apiGet(pid); }
+    catch (e) { note("目前連不到作答伺服器，所以還不能開始（避免答案沒存到）。請確認網路後重新整理頁面再試；一直不行請告訴研究人員。"); updateStart(); return; }
+    const sameLocal = local && local.contract === CONTRACT && local.pid === pid;
+    if (remote.found) {
+      state = { pid, name: remote.name, seed: remote.seed, contract: remote.contract, started_at: remote.started_at,
+        answers: remote.answers || {}, seen: (sameLocal && local.seen) || {}, done: false };
+      // Answers made on this device that never reached the server are sent again (the server overwrites duplicates).
+      if (sameLocal) for (const [k, a] of Object.entries(local.answers || {})) if (!(k in state.answers)) {
+        state.answers[k] = a; enqueue({ ...base(), type: "answer", key: k, answer: a });
+      }
+    } else if (sameLocal) {
+      state = local; state.done = false;
+      enqueue({ ...base(), type: "start" });
+      for (const [k, a] of Object.entries(state.answers || {})) enqueue({ ...base(), type: "answer", key: k, answer: a });
+    } else if (code) {
+      note("找不到這個續填代碼，請確認有沒有打錯；要重新開始就把代碼清空。"); updateStart(); return;
+    } else {
+      const p = newPid();
+      state = { pid: p, name, seed: p + ":" + Date.now(), contract: CONTRACT, started_at: new Date().toISOString(),
+        answers: {}, seen: {}, done: false };
+      enqueue({ ...base(), type: "start" });
+    }
+    note("");
+    lsSet(LS, state);
+    const q = new URLSearchParams(location.search); q.set("pid", state.pid);
+    history.replaceState(null, "", "?" + q.toString());
+    plan = {}; ORDER.forEach((p) => { plan[p] = buildPlan(p, state.seed); });
+    steps = buildSteps();
+    const partStarted = (p) => Object.keys(state.answers).some((k) => k.startsWith(p + "/"));
+    idx = 0;
+    while (idx < steps.length && (steps[idx].screen ? (state.seen[steps[idx].screen] || partStarted(steps[idx].part)) : steps[idx].key in state.answers)) idx++;
+    renderStatus();
+    advance();
+  };
+  $("screenBtn").onclick = () => { state.seen[steps[idx].screen] = new Date().toISOString(); lsSet(LS, state); idx++; advance(); };
+
+  // Done screen: waits for the queue to drain, then reads the server back and compares the answer count.
+  async function showDone() {
+    show("done"); $("resyncBtn").hidden = true; $("syncNote").textContent = "正在上傳作答…";
+    flush();
+    for (let t = 0; t < 120 && (queue.length || flushing); t++) await sleep(500);
+    let n = -1;
+    if (!queue.length) { try { n = Object.keys((await apiGet(state.pid)).answers || {}).length; } catch (e) {} }
+    const total = steps.filter((s) => !s.screen).length;
+    if (n === total) $("syncNote").textContent = "所有作答都已上傳，可以關閉這個頁面了。";
+    else {
+      $("syncNote").textContent = "還有作答沒有上傳成功（續填代碼 " + state.pid + "）。答案仍保存在這台裝置，請確認網路後按「重新上傳」；一直不行請把續填代碼告訴研究人員。";
+      $("resyncBtn").hidden = false;
+    }
+  }
+  $("resyncBtn").onclick = () => showDone();
+
+  function advance() {
+    if (idx >= steps.length) {
+      if (!state.done) {
+        state.done = true; state.finished_at = new Date().toISOString(); lsSet(LS, state);
+        enqueue({ ...base(), type: "done", finished_at: state.finished_at });
+      }
+      showDone(); return;
+    }
+    const st = steps[idx];
+    if (st.screen) {
+      const c = screenContent(st);
+      $("screenTitle").textContent = c.title; $("screenBody").innerHTML = c.body; $("screenBtn").textContent = c.btn;
+      show("screen"); return;
+    }
+    showTrial(st);
+  }
+
+  const src = (st) => { const m = meta(st); return "stimuli/" + st.part + "/" + st.id + ".jpg" + (m && m.v ? "?v=" + m.v : ""); };
+  const meta = (st) => TRIALS[st.part].trials.find((t) => t.id === st.id);
+  const cache = new Map();
+  function sprite(u) {
+    if (!cache.has(u)) cache.set(u, new Promise((ok, bad) => { const im = new Image(); im.onload = () => ok(im); im.onerror = bad; im.src = u; }));
+    return cache.get(u);
+  }
+  function tile(im, m, k, canvas) {
+    canvas.width = m.w; canvas.height = m.h;
+    canvas.getContext("2d").drawImage(im, k * m.tw, 0, m.w, m.h, 0, 0, m.w, m.h);
+  }
+  function preload(i) { for (let j = i; j < Math.min(steps.length, i + 3); j++) if (!steps[j].screen) { sprite(src(steps[j])).catch(() => {}); return; } }
+
+  function showTrial(st) {
+    show("trial");
+    const P = PART[st.part];
+    $("question").textContent = P.question;
+    $("count").textContent = P.label;
+    $("prog").style.width = ((st.n - 1) / st.of) * 100 + "%";
+    const stage = $("stage"); stage.textContent = "";
+    const letters = plan[st.part].perm[st.id].split(""), m = meta(st), here = idx;
+    busy = true;
+    const canvases = letters.map((l, pos) => {
+      const b = document.createElement("button");
+      b.className = "opt"; b.type = "button"; b.setAttribute("aria-label", "選擇第 " + (pos + 1) + " 張");
+      const cv = document.createElement("canvas"); cv.width = m.w; cv.height = m.h;
+      cv.setAttribute("role", "img"); cv.setAttribute("aria-label", "版本 " + (pos + 1));
+      const num = document.createElement("span"); num.className = "num"; num.textContent = String(pos + 1);
+      const z = document.createElement("button"); z.className = "zoom"; z.type = "button"; z.textContent = "放大";
+      z.onclick = (e) => { e.stopPropagation(); const v = $("viewerCanvas"); v.width = m.w; v.height = m.h;
+        v.getContext("2d").drawImage(cv, 0, 0); $("viewer").hidden = false; };
+      b.append(cv, num, z);
+      b.onclick = () => pick(pos);
+      stage.appendChild(b);
+      return cv;
+    });
+    sprite(src(st)).then((im) => {
+      if (here !== idx) return;
+      letters.forEach((l, pos) => tile(im, m, "abc".indexOf(l), canvases[pos]));
+      shownAt = performance.now(); busy = false;
+    }).catch(() => { cache.delete(src(st)); $("count").textContent = "圖片載入失敗，請重新整理頁面"; });
+    preload(idx + 1);
+  }
+
+  function pick(pos) {
+    if (busy || !$("viewer").hidden) return;
+    const st = steps[idx];
+    if (!st || st.screen) return;
+    busy = true;
+    const letters = plan[st.part].perm[st.id];
+    $("stage").querySelectorAll(".opt")[pos].classList.add("picked");
+    const a = { pick: letters[pos], pos, order: letters, ms: Math.round(performance.now() - shownAt), ts: new Date().toISOString() };
+    state.answers[st.key] = a;
+    lsSet(LS, state);
+    enqueue({ ...base(), type: "answer", key: st.key, answer: a });
+    idx += 1;
+    setTimeout(advance, 220);
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if ($("trial").hidden) return;
+    if (e.key === "Escape") { $("viewer").hidden = true; return; }
+    const n = ["1", "2", "3"].indexOf(e.key);
+    if (n >= 0) pick(n);
+  });
+  $("viewer").onclick = () => { $("viewer").hidden = true; };
+  window.addEventListener("pagehide", () => { if (state) lsSet(LS, state); });
+
+  if (queue.length) setTimeout(flush, 0);   // leftovers from an earlier visit; base() fields are inside each entry
+  fetch("trials.json", { cache: "no-store" }).then((r) => r.json()).then((t) => { TRIALS = t; updateStart(); })
+    .catch(() => note("題目載入失敗，請重新整理頁面。"));
+})();
+</script>
+</body>
+</html>
