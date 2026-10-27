@@ -119,8 +119,8 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
 </section>
 
 <main id="done" class="wrap" hidden>
-  <h1>完成，謝謝你<span class="en">Done, thank you</span></h1>
-  <p id="syncNote" class="muted">正在上傳作答…<span class="en">Uploading your answers…</span></p>
+  <h1 id="doneTitle"></h1>
+  <p id="syncNote"></p>
   <div><button class="btn" id="resyncBtn" hidden>重新上傳 Upload again</button></div>
 </main>
 
@@ -334,20 +334,31 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
   $("screenBtn").onclick = () => { state.seen[steps[idx].screen] = new Date().toISOString(); lsSet(LS, state); idx++; advance(); };
 
   // Done screen: waits for the queue to drain, then reads the server back and compares the answer count.
+  // Until the server confirms every answer the page says not to close it, and the browser asks before leaving.
+  let uploading = false;
+  const syncNote = (html, warn) => { $("syncNote").innerHTML = html; $("syncNote").className = warn ? "notice" : "muted"; };
   async function showDone() {
-    show("done"); $("resyncBtn").hidden = true; $("syncNote").innerHTML = bi("正在上傳作答…", "Uploading your answers…");
+    show("done"); $("resyncBtn").hidden = true; uploading = true;
+    $("doneTitle").innerHTML = bi("題目都做完了，正在上傳作答", "All questions answered, uploading");
+    syncNote(bi("<strong>請先不要關閉這個頁面</strong>，等這裡顯示「所有作答都已上傳」再關閉。",
+      "<strong>Please do not close this page yet.</strong> Wait until it says all answers are uploaded."), true);
     flush();
     for (let t = 0; t < 120 && (queue.length || flushing); t++) await sleep(500);
     let n = -1;
     if (!queue.length) { try { n = Object.keys((await apiGet(state.pid)).answers || {}).length; } catch (e) {} }
     const total = steps.filter((s) => !s.screen).length;
-    if (n === total) $("syncNote").innerHTML = bi("所有作答都已上傳，可以關閉這個頁面了。", "All answers are uploaded; you can close this page.");
-    else {
-      $("syncNote").innerHTML = bi("還有作答沒有上傳成功。答案仍保存在這台裝置，請確認網路後按「重新上傳」；一直不行請把你的代號告訴研究人員。",
-        "Some answers have not been uploaded. They are still on this device; check your connection and press Upload again. If it keeps failing, tell the researcher your nickname.");
+    if (n === total) {
+      uploading = false;
+      $("doneTitle").innerHTML = bi("完成，謝謝你", "Done, thank you");
+      syncNote(bi("所有作答都已上傳，可以關閉這個頁面了。", "All answers are uploaded; you can close this page."), false);
+    } else {
+      $("doneTitle").innerHTML = bi("還有作答沒有上傳", "Some answers are not uploaded");
+      syncNote(bi("還有作答沒有上傳成功，<strong>請不要關閉這個頁面</strong>。答案仍保存在這台裝置，請確認網路後按「重新上傳」；一直不行請把你的代號告訴研究人員。",
+        "Some answers have not been uploaded; <strong>please do not close this page</strong>. They are still on this device; check your connection and press Upload again. If it keeps failing, tell the researcher your nickname."), true);
       $("resyncBtn").hidden = false;
     }
   }
+  window.addEventListener("beforeunload", (e) => { if (uploading || queue.length) { e.preventDefault(); e.returnValue = ""; } });
   $("resyncBtn").onclick = () => showDone();
 
   function advance() {
