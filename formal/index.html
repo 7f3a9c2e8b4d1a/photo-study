@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<title>照片偏好測驗</title>
+<title>影像比較研究 Image Comparison Study</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap">
 <style>
 /* Layout: one centred column of text; the trial screen widens to a three-up row of photos on a fixed mid-grey stage. */
@@ -65,6 +65,8 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
 #viewer canvas { max-width: 100vw; max-height: 100vh; width: auto; height: auto; }
 #viewer span { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); right: calc(12px + env(safe-area-inset-right, 0px));
   background: rgba(0,0,0,.55); color: #fff; padding: 4px 10px; border-radius: 6px; }
+.en { display: block; color: var(--muted); font-size: .88em; font-weight: 400; }
+.warn .en, .opt .en { color: inherit; }
 .warn { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; margin: 0; padding: 12px 16px; background: #b3261e; color: #fff; text-align: center; }
 @media (max-width: 760px) {
   .stage { grid-template-columns: minmax(0, 1fr); padding: 10px; }
@@ -79,15 +81,15 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
 
 
 <main id="welcome" class="wrap">
-  <h1>照片偏好測驗</h1>
-  <p>每一題會出現同一張照片的三個版本，請選出一個。測驗分成兩個部分，中間可以休息，全部約 10 分鐘。</p>
+  <h1>影像比較研究<span class="en">Image Comparison Study</span></h1>
+  <p>每一題會出現同一張照片的三個版本，請選出一個。共分兩個部分，中間可以休息，全部約 10 分鐘。<span class="en">Each question shows three versions of the same photo; pick one. There are two parts with a break in between, about 10 minutes in total.</span></p>
   <div class="box">
-    <label for="pname">你的名字或代號</label>
-    <input type="text" id="pname" autocomplete="nickname" maxlength="40" placeholder="例如：小明0412">
-    <p class="muted">請取一個不容易跟別人重複的代號，例如名字加生日四碼；不要用「小明」「test」這類常見的。代號就是你的作答紀錄。每答一題都會立刻上傳；中途離開，在任何裝置打開這個網址、輸入同一個代號按「開始」，就會從上次的題目繼續。</p>
+    <label for="pname">你的名字或代號<span class="en">Your name or nickname</span></label>
+    <input type="text" id="pname" autocomplete="nickname" maxlength="40" placeholder="例如 e.g. Ming0412">
+    <p class="muted">請取一個不容易跟別人重複的代號，例如名字加生日四碼；不要用「小明」「test」這類常見的。代號就是你的作答紀錄。每答一題都會立刻上傳；中途離開，在任何裝置打開這個網址、輸入同一個代號按「開始」，就會從上次的題目繼續。<span class="en">Pick a nickname nobody else is likely to use, e.g. your name plus four digits of your birthday; avoid common ones such as "Ming" or "test". The nickname is your record. Every answer is uploaded at once; if you leave midway, open this address on any device, enter the same nickname and press Start to continue where you stopped.</span></p>
   </div>
   <p id="note" class="notice" hidden></p>
-  <div><button class="btn" id="startBtn" disabled>開始</button></div>
+  <div><button class="btn" id="startBtn" disabled>開始 Start</button></div>
 </main>
 
 <main id="screen" class="wrap" hidden>
@@ -104,18 +106,18 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
   <div style="display:grid; gap:10px; align-content:start;">
     <p class="question" id="question"></p>
     <div class="stage" id="stage"></div>
-    <p class="hint muted"><span class="kbd">按 1、2、3 或</span>點選圖片作答</p>
+    <p class="hint muted"><span class="kbd">按 1、2、3 或</span>點選圖片作答<span class="en">Answer by clicking a photo<span class="kbd"> or pressing 1, 2, 3</span></span></p>
   </div>
 </section>
 
 <main id="done" class="wrap" hidden>
-  <h1>完成，謝謝你</h1>
-  <p id="syncNote" class="muted">正在上傳作答…</p>
-  <div><button class="btn" id="resyncBtn" hidden>重新上傳</button></div>
+  <h1>完成，謝謝你<span class="en">Done, thank you</span></h1>
+  <p id="syncNote" class="muted">正在上傳作答…<span class="en">Uploading your answers…</span></p>
+  <div><button class="btn" id="resyncBtn" hidden>重新上傳 Upload again</button></div>
 </main>
 
 <p id="warn" class="warn" role="alert" hidden></p>
-<div id="viewer" hidden><canvas id="viewerCanvas"></canvas><span>點一下關閉</span></div>
+<div id="viewer" hidden><canvas id="viewerCanvas"></canvas><span>點一下關閉 Tap to close</span></div>
 
 <script>
 (() => {
@@ -125,14 +127,19 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
   const STUDY = "formal";
   // Part order alternates with the server-assigned participant ordinal (protocol §7 part-order effect).
   const orderOf = (ordinal) => (ordinal % 2 ? ["retouching", "isp"] : ["isp", "retouching"]);
-  const LABELS = ["第一部分", "第二部分"];
+  // Every visible text is Traditional Chinese with the English below it (USER 2026-10-27).
+  const bi = (zh, en) => zh + "<span class='en'>" + en + "</span>";
+  const LABELS = [["第一部分", "Part 1"], ["第二部分", "Part 2"]];
   const PART = {
     // ISP: SID "higher quality" + DeepISP factors + NTIRE 2023/24 "more pleasant" (USER 2026-10-20: fuse A and B).
-    isp: { question: "哪一張的畫質最好、看起來最舒服自然？",
-      hint: "這三張是同一張照片的不同成像結果。請考慮顏色是否自然、亮度、細節與清晰度，不要評判照片的內容或構圖。" },
+    isp: { question: bi("哪一張的畫質最好、看起來最舒服自然？",
+      "Which one has the best image quality and looks the most pleasant and natural?"),
+      hint: bi("這三張是同一張照片的不同成像結果。請考慮顏色是否自然、亮度、細節與清晰度，不要評判照片的內容或構圖。",
+        "The three are different renderings of the same photo. Consider natural colour, brightness, detail and sharpness; do not judge the content or composition of the photo.") },
     // Retouching: 3D-LUT "select the best (visually appealing and natural) one" + RSFNet "select the best result" (USER: A).
-    retouching: { question: "請選出最好看、最自然的一張。",
-      hint: "這三張是同一張照片的不同修圖版本。依你的整體觀感選擇。" },
+    retouching: { question: bi("請選出最好看、最自然的一張。", "Pick the one that looks best and most natural."),
+      hint: bi("這三張是同一張照片的不同修圖版本。依你的整體觀感選擇。",
+        "The three are differently retouched versions of the same photo. Choose by your overall impression.") },
   };
   const CONTRACT = "formal-2026-10-27";
   const N_REPEAT = 2;   // per part (protocol §4, D8)
@@ -216,7 +223,8 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
   function renderStatus() {
     const w = $("warn");
     w.hidden = !(queue.length && fails >= 2);
-    w.textContent = "網路連線不穩，有 " + queue.length + " 題還沒上傳。答案先存在這台裝置，恢復連線後會自動上傳，請不要關閉這個頁面。";
+    w.innerHTML = bi("網路連線不穩，有 " + queue.length + " 題還沒上傳。答案先存在這台裝置，恢復連線後會自動上傳，請不要關閉這個頁面。",
+      "Unstable connection: " + queue.length + " answer(s) not uploaded yet. They are kept on this device and upload automatically when the connection returns; please keep this page open.");
   }
   window.addEventListener("online", flush);
 
@@ -238,20 +246,31 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
 
   function screenContent(st) {
     const P = PART[st.part], li = (t) => "<li>" + t + "</li>";
-    if (st.screen.startsWith("go_")) return { title: "示範題結束",
-      body: "<p>接下來是" + st.label + "的正式題目，作答方式和剛才一樣。</p>", btn: "開始正式作答" };
-    if (st.screen.startsWith("rest_")) return { title: "第一部分完成，休息一下",
-      body: "<p>做得很好。可以先起來走動、讓眼睛休息一兩分鐘，準備好了再繼續。</p><p class='muted'>第二部分作答方式相同，但照片類型和問題不同，請先看說明。</p>", btn: "我休息好了，繼續" };
-    return { title: st.label + "：作答說明",
-      body: "<ol class='rules'>" + li("每題有三張圖，是同一張照片的三個版本，左右順序每題都不同。")
-        + li("問題是：<strong>" + P.question + "</strong>") + li(P.hint)
-        + li("沒有標準答案，請依你自己的感覺選；看的時間不限。")
-        + li("點一下圖片即作答，並自動進到下一題。想看細節可按圖片角落的「放大」。")
-        + li("先做一題示範題熟悉操作，示範題不計分。") + "</ol>"
-        + "<p class='muted kbd'>鍵盤也可以作答：按 1、2、3。</p>", btn: "開始示範題" };
+    if (st.screen.startsWith("go_")) return { title: bi("示範題結束", "End of the example"),
+      body: "<p>" + bi("接下來是" + st.label[0] + "的正式題目，作答方式和剛才一樣。",
+        "Next come the real questions of " + st.label[1] + ", answered the same way.") + "</p>",
+      btn: "開始正式作答 Start" };
+    if (st.screen.startsWith("rest_")) return { title: bi("第一部分完成，休息一下", "Part 1 done, take a break"),
+      body: "<p>" + bi("做得很好。可以先起來走動、讓眼睛休息一兩分鐘，準備好了再繼續。",
+        "Well done. Stand up and rest your eyes for a minute or two, and continue when you are ready.") + "</p>"
+        + "<p class='muted'>" + bi("第二部分作答方式相同，但照片類型和問題不同，請先看說明。",
+        "Part 2 works the same way, but the photos and the question are different; please read the instructions first.") + "</p>",
+      btn: "我休息好了，繼續 Continue" };
+    return { title: bi(st.label[0] + "：作答說明", st.label[1] + ": instructions"),
+      body: "<ol class='rules'>" + li(bi("每題有三張圖，是同一張照片的三個版本，左右順序每題都不同。",
+          "Each question shows three images: three versions of the same photo, in a different left-to-right order each time."))
+        + li("<strong>" + P.question + "</strong>") + li(P.hint)
+        + li(bi("沒有標準答案，請依你自己的感覺選；看的時間不限。", "There is no right answer; choose by your own impression. There is no time limit."))
+        + li(bi("點一下圖片即作答，並自動進到下一題。想看細節可按圖片角落的「放大」。",
+          "Click an image to answer; the next question follows automatically. For details, press Zoom in the corner of an image."))
+        + li(bi("先做一題示範題熟悉操作，示範題不計分。", "You start with one example question to get used to it; it is not scored.")) + "</ol>"
+        + "<p class='muted kbd'>" + bi("鍵盤也可以作答：按 1、2、3。", "You can also answer with the keys 1, 2, 3.") + "</p>",
+      btn: "開始示範題 Start the example" };
   }
 
-  const note = (t) => { $("note").hidden = !t; $("note").textContent = t || ""; };
+  const note = (t) => { $("note").hidden = !t; $("note").innerHTML = t || ""; };
+  const UNREACHABLE = bi("目前連不到作答伺服器，所以還不能開始（避免答案沒存到）。請確認網路後重新整理頁面再試；一直不行請告訴研究人員。",
+    "The answer server cannot be reached, so the study cannot start yet (so that no answer is lost). Check your connection and reload the page; if it keeps failing, tell the researcher.");
   function updateStart() { $("startBtn").disabled = !($("pname").value.trim() && TRIALS); }
   $("pname").addEventListener("input", updateStart);
   {
@@ -261,11 +280,11 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
 
   $("startBtn").onclick = async () => {
     const name = $("pname").value.trim(), local = lsGet(LS);
-    $("startBtn").disabled = true; note("連線中…");
+    $("startBtn").disabled = true; note(bi("連線中…", "Connecting…"));
     const pid = await pidOf(name);
     let remote;
     try { remote = await apiGet(pid); }
-    catch (e) { note("目前連不到作答伺服器，所以還不能開始（避免答案沒存到）。請確認網路後重新整理頁面再試；一直不行請告訴研究人員。"); updateStart(); return; }
+    catch (e) { note(UNREACHABLE); updateStart(); return; }
     const sameLocal = local && local.contract === CONTRACT && local.pid === pid;
     if (remote.found) {
       state = { pid, name: remote.name, seed: remote.seed, contract: remote.contract, started_at: remote.started_at,
@@ -283,7 +302,7 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
       state = { pid, name, seed: pid + ":" + Date.now(), contract: CONTRACT, started_at: new Date().toISOString(),
         ordinal: null, answers: {}, seen: {}, done: false };
       try { state.ordinal = Number((await apiPost({ ...base(), type: "start" })).ordinal); }
-      catch (e) { note("目前連不到作答伺服器，所以還不能開始（避免答案沒存到）。請確認網路後重新整理頁面再試；一直不行請告訴研究人員。"); updateStart(); return; }
+      catch (e) { note(UNREACHABLE); updateStart(); return; }
     }
     note("");
     lsSet(LS, state);
@@ -299,15 +318,16 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
 
   // Done screen: waits for the queue to drain, then reads the server back and compares the answer count.
   async function showDone() {
-    show("done"); $("resyncBtn").hidden = true; $("syncNote").textContent = "正在上傳作答…";
+    show("done"); $("resyncBtn").hidden = true; $("syncNote").innerHTML = bi("正在上傳作答…", "Uploading your answers…");
     flush();
     for (let t = 0; t < 120 && (queue.length || flushing); t++) await sleep(500);
     let n = -1;
     if (!queue.length) { try { n = Object.keys((await apiGet(state.pid)).answers || {}).length; } catch (e) {} }
     const total = steps.filter((s) => !s.screen).length;
-    if (n === total) $("syncNote").textContent = "所有作答都已上傳，可以關閉這個頁面了。";
+    if (n === total) $("syncNote").innerHTML = bi("所有作答都已上傳，可以關閉這個頁面了。", "All answers are uploaded; you can close this page.");
     else {
-      $("syncNote").textContent = "還有作答沒有上傳成功。答案仍保存在這台裝置，請確認網路後按「重新上傳」；一直不行請把你的代號告訴研究人員。";
+      $("syncNote").innerHTML = bi("還有作答沒有上傳成功。答案仍保存在這台裝置，請確認網路後按「重新上傳」；一直不行請把你的代號告訴研究人員。",
+        "Some answers have not been uploaded. They are still on this device; check your connection and press Upload again. If it keeps failing, tell the researcher your nickname.");
       $("resyncBtn").hidden = false;
     }
   }
@@ -324,7 +344,7 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
     const st = steps[idx];
     if (st.screen) {
       const c = screenContent(st);
-      $("screenTitle").textContent = c.title; $("screenBody").innerHTML = c.body; $("screenBtn").textContent = c.btn;
+      $("screenTitle").innerHTML = c.title; $("screenBody").innerHTML = c.body; $("screenBtn").textContent = c.btn;
       show("screen"); return;
     }
     showTrial(st);
@@ -346,19 +366,19 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
   function showTrial(st) {
     show("trial");
     const P = PART[st.part];
-    $("question").textContent = P.question;
-    $("count").textContent = st.label + (st.demo ? "・示範題（不計分）" : "");
+    $("question").innerHTML = P.question;
+    $("count").textContent = st.label.join(" ") + (st.demo ? "・示範題（不計分）Example (not scored)" : "");
     $("prog").style.width = (st.demo ? 0 : ((st.n - 1) / st.of) * 100) + "%";
     const stage = $("stage"); stage.textContent = "";
     const letters = plan[st.part].perm[st.pk].split(""), m = meta(st), here = idx;
     busy = true;
     const canvases = letters.map((l, pos) => {
       const b = document.createElement("button");
-      b.className = "opt"; b.type = "button"; b.setAttribute("aria-label", "選擇第 " + (pos + 1) + " 張");
+      b.className = "opt"; b.type = "button"; b.setAttribute("aria-label", "選擇第 " + (pos + 1) + " 張 / choose image " + (pos + 1));
       const cv = document.createElement("canvas"); cv.width = m.w; cv.height = m.h;
-      cv.setAttribute("role", "img"); cv.setAttribute("aria-label", "版本 " + (pos + 1));
+      cv.setAttribute("role", "img"); cv.setAttribute("aria-label", "版本 " + (pos + 1) + " / version " + (pos + 1));
       const num = document.createElement("span"); num.className = "num"; num.textContent = String(pos + 1);
-      const z = document.createElement("button"); z.className = "zoom"; z.type = "button"; z.textContent = "放大";
+      const z = document.createElement("button"); z.className = "zoom"; z.type = "button"; z.textContent = "放大 Zoom";
       z.onclick = (e) => { e.stopPropagation(); const v = $("viewerCanvas"); v.width = m.w; v.height = m.h;
         v.getContext("2d").drawImage(cv, 0, 0); $("viewer").hidden = false; };
       b.append(cv, num, z);
@@ -370,7 +390,7 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
       if (here !== idx) return;
       letters.forEach((l, pos) => tile(im, m, "abc".indexOf(l), canvases[pos]));
       shownAt = performance.now(); busy = false;
-    }).catch(() => { cache.delete(src(st)); $("count").textContent = "圖片載入失敗，請重新整理頁面"; });
+    }).catch(() => { cache.delete(src(st)); $("count").textContent = "圖片載入失敗，請重新整理頁面 / Image failed to load, please reload"; });
     preload(idx + 1);
   }
 
@@ -400,7 +420,7 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
 
   if (queue.length) setTimeout(flush, 0);   // leftovers from an earlier visit; base() fields are inside each entry
   fetch("trials.json", { cache: "no-store" }).then((r) => r.json()).then((t) => { TRIALS = t; updateStart(); })
-    .catch(() => note("題目載入失敗，請重新整理頁面。"));
+    .catch(() => note(bi("題目載入失敗，請重新整理頁面。", "The questions failed to load; please reload the page.")));
 })();
 </script>
 </body>
