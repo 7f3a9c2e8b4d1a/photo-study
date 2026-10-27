@@ -49,31 +49,39 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
 .stage { background: var(--stage); border-radius: 10px; padding: 14px; display: grid; gap: 14px;
   grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; max-width: 1400px; width: 100%; margin: 0 auto;
   box-sizing: border-box; }
-.opt { all: unset; box-sizing: border-box; cursor: pointer; display: grid; gap: 8px; justify-items: center;
-  padding: 6px; border-radius: 8px; border: 3px solid transparent; position: relative; min-width: 0; }
-.opt canvas { display: block; width: 100%; height: auto; max-height: 72vh; object-fit: contain; pointer-events: none;
+.cell { display: grid; gap: 8px; min-width: 0; }
+.opt { all: unset; box-sizing: border-box; cursor: pointer; display: block; padding: 6px; border-radius: 8px;
+  border: 3px solid transparent; min-width: 0; }
+.opt canvas { display: block; width: 100%; height: auto; max-height: 68vh; object-fit: contain; pointer-events: none;
   user-select: none; }
-.opt .num { font-weight: 700; color: #ffffff; background: rgba(0,0,0,.35); border-radius: 999px; min-width: 2em;
-  text-align: center; padding: 2px 10px; }
 .opt:hover, .opt:focus-visible { border-color: rgba(255,255,255,.7); }
 .opt.picked { border-color: var(--pick); }
-.zoom { position: absolute; top: 12px; right: 12px; min-height: 36px; min-width: 36px; padding: 4px 10px;
-  background: rgba(0,0,0,.55); color: #fff; border: 0; font-size: .85rem; }
+/* The zoom button sits below the image, outside the answer button, so it cannot be hit by accident. */
+.cellbar { display: flex; justify-content: center; align-items: center; gap: 12px; }
+.num { font-weight: 700; color: #ffffff; background: rgba(0,0,0,.35); border-radius: 999px; min-width: 2em;
+  text-align: center; padding: 2px 10px; }
+.zoom { min-height: 36px; padding: 4px 12px; background: rgba(0,0,0,.55); color: #fff; border: 0; font-size: .85rem; }
 .hint { text-align: center; }
-#viewer { position: fixed; inset: 0; background: #808080; display: grid; place-items: center; z-index: 20; cursor: zoom-out;
-  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
-#viewer canvas { max-width: 100vw; max-height: 100vh; width: auto; height: auto; }
-#viewer span { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); right: calc(12px + env(safe-area-inset-right, 0px));
-  background: rgba(0,0,0,.55); color: #fff; padding: 4px 10px; border-radius: 6px; }
+#viewer { position: fixed; inset: 0; background: #808080; z-index: 20; overflow: hidden; touch-action: none;
+  cursor: grab; user-select: none; }
+#viewer.drag { cursor: grabbing; }
+#viewer canvas { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.vbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  display: flex; gap: 8px; align-items: center; background: rgba(0,0,0,.6); color: #fff; padding: 6px; border-radius: 10px;
+  z-index: 21; white-space: nowrap; }
+.vbar button { background: rgba(255,255,255,.14); color: #fff; border: 0; padding: 4px 12px; min-height: 40px; }
+.vbar output { min-width: 3.5em; text-align: center; font-variant-numeric: tabular-nums; }
+.vtip { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,.55); color: #fff; padding: 4px 12px; border-radius: 6px; font-size: .85rem; text-align: center;
+  z-index: 21; pointer-events: none; }
+.vtip .en { color: inherit; }
 .en { display: block; color: var(--muted); font-size: .88em; font-weight: 400; }
 .warn .en, .opt .en { color: inherit; }
 .warn { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; margin: 0; padding: 12px 16px; background: #b3261e; color: #fff; text-align: center; }
 @media (max-width: 760px) {
   .stage { grid-template-columns: minmax(0, 1fr); padding: 10px; }
   .opt canvas { max-height: none; }
-  .kbd { display: none; }
 }
-@media (hover: none) { .kbd { display: none; } }
 @media (prefers-reduced-motion: reduce) { .progress > i { transition: none; } }
 </style>
 </head>
@@ -106,7 +114,7 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
   <div style="display:grid; gap:10px; align-content:start;">
     <p class="question" id="question"></p>
     <div class="stage" id="stage"></div>
-    <p class="hint muted"><span class="kbd">按 1、2、3 或</span>點選圖片作答<span class="en">Answer by clicking a photo<span class="kbd"> or pressing 1, 2, 3</span></span></p>
+    <p class="hint muted">點選圖片作答；按圖片下方的「放大」可以全螢幕仔細看<span class="en">Click a photo to answer; press Zoom below a photo to inspect it full screen</span></p>
   </div>
 </section>
 
@@ -117,7 +125,17 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
 </main>
 
 <p id="warn" class="warn" role="alert" hidden></p>
-<div id="viewer" hidden><canvas id="viewerCanvas"></canvas><span>點一下關閉 Tap to close</span></div>
+<div id="viewer" hidden>
+  <canvas id="viewerCanvas"></canvas>
+  <p class="vtip">拖曳移動，滾輪或雙指縮放，雙擊放大<span class="en">Drag to move, scroll or pinch to zoom, double-click to zoom in</span></p>
+  <div class="vbar">
+    <button type="button" id="vOut" aria-label="縮小 zoom out">－</button>
+    <output id="vPct"></output>
+    <button type="button" id="vIn" aria-label="放大 zoom in">＋</button>
+    <button type="button" id="vFit">全圖 Fit</button>
+    <button type="button" id="vClose">關閉 Close</button>
+  </div>
+</div>
 
 <script>
 (() => {
@@ -261,10 +279,9 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
           "Each question shows three images: three versions of the same photo, in a different left-to-right order each time."))
         + li("<strong>" + P.question + "</strong>") + li(P.hint)
         + li(bi("沒有標準答案，請依你自己的感覺選；看的時間不限。", "There is no right answer; choose by your own impression. There is no time limit."))
-        + li(bi("點一下圖片即作答，並自動進到下一題。想看細節可按圖片角落的「放大」。",
-          "Click an image to answer; the next question follows automatically. For details, press Zoom in the corner of an image."))
-        + li(bi("先做一題示範題熟悉操作，示範題不計分。", "You start with one example question to get used to it; it is not scored.")) + "</ol>"
-        + "<p class='muted kbd'>" + bi("鍵盤也可以作答：按 1、2、3。", "You can also answer with the keys 1, 2, 3.") + "</p>",
+        + li(bi("點一下圖片即作答，並自動進到下一題。想看細節可按圖片下方的「放大」，全螢幕放大後可以拖曳和縮放。",
+          "Click an image to answer; the next question follows automatically. For details, press Zoom below an image: it opens full screen, where you can drag and zoom."))
+        + li(bi("先做一題示範題熟悉操作。", "You start with one example question to get used to it.")) + "</ol>",
       btn: "開始示範題 Start the example" };
   }
 
@@ -367,23 +384,26 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
     show("trial");
     const P = PART[st.part];
     $("question").innerHTML = P.question;
-    $("count").textContent = st.label.join(" ") + (st.demo ? "・示範題（不計分）Example (not scored)" : "");
+    $("count").textContent = st.label.join(" ") + (st.demo ? "・示範題 Example" : "");
     $("prog").style.width = (st.demo ? 0 : ((st.n - 1) / st.of) * 100) + "%";
     const stage = $("stage"); stage.textContent = "";
     const letters = plan[st.part].perm[st.pk].split(""), m = meta(st), here = idx;
     busy = true;
     const canvases = letters.map((l, pos) => {
+      const cell = document.createElement("div"); cell.className = "cell";
       const b = document.createElement("button");
       b.className = "opt"; b.type = "button"; b.setAttribute("aria-label", "選擇第 " + (pos + 1) + " 張 / choose image " + (pos + 1));
       const cv = document.createElement("canvas"); cv.width = m.w; cv.height = m.h;
       cv.setAttribute("role", "img"); cv.setAttribute("aria-label", "版本 " + (pos + 1) + " / version " + (pos + 1));
+      b.append(cv);
+      b.onclick = () => pick(pos);
+      const bar = document.createElement("div"); bar.className = "cellbar";
       const num = document.createElement("span"); num.className = "num"; num.textContent = String(pos + 1);
       const z = document.createElement("button"); z.className = "zoom"; z.type = "button"; z.textContent = "放大 Zoom";
-      z.onclick = (e) => { e.stopPropagation(); const v = $("viewerCanvas"); v.width = m.w; v.height = m.h;
-        v.getContext("2d").drawImage(cv, 0, 0); $("viewer").hidden = false; };
-      b.append(cv, num, z);
-      b.onclick = () => pick(pos);
-      stage.appendChild(b);
+      z.onclick = () => openViewer(cv);
+      bar.append(num, z);
+      cell.append(b, bar);
+      stage.appendChild(cell);
       return cv;
     });
     sprite(src(st)).then((im) => {
@@ -409,13 +429,57 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
     setTimeout(advance, 220);
   }
 
-  document.addEventListener("keydown", (e) => {
-    if ($("trial").hidden) return;
-    if (e.key === "Escape") { $("viewer").hidden = true; return; }
-    const n = ["1", "2", "3"].indexOf(e.key);
-    if (n >= 0) pick(n);
+  // Full-screen viewer: the image starts fitted to the screen (upscaled when the screen is larger) and can be zoomed
+  // up to 8x its own pixels by wheel, pinch, double-click or the +/- buttons, and moved by dragging.
+  const V = { s: 1, x: 0, y: 0, fit: 1, w: 0, h: 0 }, ptrs = new Map();
+  let pinch = null, drag = null;
+  const vMax = () => Math.max(V.fit * 4, 8);
+  function vApply() {
+    const vw = innerWidth, vh = innerHeight, iw = V.w * V.s, ih = V.h * V.s;
+    V.x = iw <= vw ? (vw - iw) / 2 : Math.min(0, Math.max(vw - iw, V.x));
+    V.y = ih <= vh ? (vh - ih) / 2 : Math.min(0, Math.max(vh - ih, V.y));
+    $("viewerCanvas").style.transform = "translate(" + V.x + "px," + V.y + "px) scale(" + V.s + ")";
+    $("vPct").textContent = Math.round(V.s * 100) + "%";
+  }
+  function vZoom(f, cx = innerWidth / 2, cy = innerHeight / 2) {
+    const ns = Math.min(vMax(), Math.max(V.fit, V.s * f));
+    V.x = cx - (cx - V.x) * ns / V.s; V.y = cy - (cy - V.y) * ns / V.s; V.s = ns; vApply();
+  }
+  function vFit() { V.s = V.fit; vApply(); }
+  function openViewer(cv) {
+    const v = $("viewerCanvas"); v.width = cv.width; v.height = cv.height; v.getContext("2d").drawImage(cv, 0, 0);
+    V.w = cv.width; V.h = cv.height; V.fit = Math.min(innerWidth / V.w, innerHeight / V.h) * 0.96;
+    $("viewer").hidden = false; vFit();
+  }
+  function closeViewer() { $("viewer").hidden = true; ptrs.clear(); pinch = drag = null; }
+  $("vIn").onclick = () => vZoom(1.5);
+  $("vOut").onclick = () => vZoom(1 / 1.5);
+  $("vFit").onclick = vFit;
+  $("vClose").onclick = closeViewer;
+  const vEl = $("viewer");
+  vEl.addEventListener("wheel", (e) => { e.preventDefault(); vZoom(Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY); }, { passive: false });
+  vEl.addEventListener("dblclick", (e) => { if (e.target.closest(".vbar")) return; vZoom(2, e.clientX, e.clientY); });
+  vEl.addEventListener("pointerdown", (e) => {
+    if (e.target.closest(".vbar")) return;
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); vEl.setPointerCapture(e.pointerId);
+    if (ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()];
+      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), s: V.s }; drag = null;
+    } else { drag = { x: e.clientX - V.x, y: e.clientY - V.y }; vEl.classList.add("drag"); }
   });
-  $("viewer").onclick = () => { $("viewer").hidden = true; };
+  vEl.addEventListener("pointermove", (e) => {
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch && ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()];
+      vZoom(pinch.s * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d / V.s, (a.x + b.x) / 2, (a.y + b.y) / 2);
+    } else if (drag) { V.x = e.clientX - drag.x; V.y = e.clientY - drag.y; vApply(); }
+  });
+  const vUp = (e) => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; if (!ptrs.size) { drag = null; vEl.classList.remove("drag"); } };
+  vEl.addEventListener("pointerup", vUp);
+  vEl.addEventListener("pointercancel", vUp);
+  window.addEventListener("resize", () => { if (!vEl.hidden) { V.fit = Math.min(innerWidth / V.w, innerHeight / V.h) * 0.96; vZoom(1); } });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !vEl.hidden) closeViewer(); });
   window.addEventListener("pagehide", () => { if (state) lsSet(LS, state); });
 
   if (queue.length) setTimeout(flush, 0);   // leftovers from an earlier visit; base() fields are inside each entry
