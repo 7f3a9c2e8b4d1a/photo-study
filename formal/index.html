@@ -20,10 +20,18 @@
   --bg: #16191e; --fg: #e6e8ec; --muted: #9aa1ad; --line: #2c313a; --card: #1f232a;
   --accent: #7fb0e0; --accent-fg: #0f1720; --pick: #f2b134; color-scheme: dark }
 [hidden] { display: none !important; }
-html, body { height: 100%; }
-body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 16px; line-height: 1.6;
-  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-.wrap { max-width: 640px; margin: 0 auto; padding-block: 40px 56px; display: grid; gap: 20px; }
+html { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 16px; line-height: 1.6; margin: 0;
+  --gl: max(16px, env(safe-area-inset-left, 0px)); --gr: max(16px, env(safe-area-inset-right, 0px));
+  padding-left: var(--gl); padding-right: var(--gr); display: flex; flex-direction: column; min-height: 100%; box-sizing: border-box; }
+.wrap { max-width: 640px; width: 100%; box-sizing: border-box; margin: 0 auto; padding-block: 40px 56px; display: grid; gap: 20px; }
+/* Contact footer at the bottom of every screen, full width (USER 2026-10-27). */
+.site-foot { margin: auto calc(-1 * var(--gr)) 0 calc(-1 * var(--gl)); background: #1f2933; color: #e6e8ec;
+  padding: 18px var(--gr) calc(18px + env(safe-area-inset-bottom, 0px)) var(--gl); text-align: center; font-size: .92rem; }
+.site-foot .en { color: #aab3bf; }
+.site-foot a { color: #ffffff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .site-foot { background: #0b0d10; } }
+:root[data-theme="dark"] .site-foot { background: #0b0d10; }
 h1 { font-size: 1.6rem; line-height: 1.3; margin: 0; text-wrap: balance; }
 h2 { font-size: 1.15rem; margin: 0; }
 p { margin: 0; }
@@ -39,7 +47,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--pick); outl
 ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
 .notice { border-left: 4px solid var(--pick); padding: 8px 12px; background: var(--card); }
 /* Trial screen */
-#trial { min-height: 100%; display: grid; grid-template-rows: auto 1fr auto; gap: 12px; padding-block: 12px; }
+#trial { box-sizing: border-box; display: grid; grid-template-rows: auto 1fr auto; gap: 12px; padding-block: 12px; }
 .bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; max-width: 1400px; width: 100%; margin: 0 auto; }
 .progress { flex: 1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
 .progress > i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }
@@ -125,6 +133,7 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
 </main>
 
 <p id="warn" class="warn" role="alert" hidden></p>
+<footer class="site-foot">遇到問題請聯絡 <a href="mailto:r14942077@ntu.edu.tw">r14942077@ntu.edu.tw</a><span class="en">Having a problem? Contact <a href="mailto:r14942077@ntu.edu.tw">r14942077@ntu.edu.tw</a></span></footer>
 <div id="viewer" hidden>
   <canvas id="viewerCanvas"></canvas>
   <p class="vtip">拖曳移動，滾輪或雙指縮放，雙擊放大<span class="en">Drag to move, scroll or pinch to zoom, double-click to zoom in</span></p>
@@ -227,11 +236,20 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
   const base = () => ({ study: STUDY, pid: state.pid, name: state.name, seed: state.seed, contract: state.contract,
     started_at: state.started_at, ordinal: state.ordinal, ua: navigator.userAgent });
   function enqueue(p) { queue.push(p); lsSet(LSQ, queue); flush(); }
+  // Everything waiting for the same pid goes in one request ({type: "batch"}); a server that does not report the batch
+  // size (an older Code.gs) gets the items one at a time instead, so nothing is dropped whichever version is deployed.
+  let singles = false;
   async function flush() {
     if (flushing) return;
     flushing = true;
     while (queue.length) {
-      try { await apiPost(queue[0]); queue.shift(); lsSet(LSQ, queue); fails = 0; }
+      let k = 1;
+      if (!singles) while (k < queue.length && k < 200 && queue[k].pid === queue[0].pid) k++;
+      try {
+        const j = await apiPost(k === 1 ? queue[0] : { ...queue[0], type: "batch", items: queue.slice(0, k) });
+        if (k > 1 && j.batch !== k) { singles = true; continue; }
+        queue.splice(0, k); lsSet(LSQ, queue); fails = 0;
+      }
       catch (e) { fails += 1; renderStatus(); await sleep(Math.min(30000, 2000 * fails)); }
       renderStatus();
     }
@@ -337,13 +355,18 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
   // Until the server confirms every answer the page says not to close it, and the browser asks before leaving.
   let uploading = false;
   const syncNote = (html, warn) => { $("syncNote").innerHTML = html; $("syncNote").className = warn ? "notice" : "muted"; };
+  // Waits as long as the queue is draining (no fixed cap); only a failing connection (fails >= 2) shows the failure
+  // note, and the screen re-checks by itself once the queue has drained.
+  let doneRun = 0;
   async function showDone() {
+    const run = ++doneRun;
     show("done"); $("resyncBtn").hidden = true; uploading = true;
     $("doneTitle").innerHTML = bi("題目都做完了，正在上傳作答", "All questions answered, uploading");
     syncNote(bi("<strong>請先不要關閉這個頁面</strong>，等這裡顯示「所有作答都已上傳」再關閉。",
       "<strong>Please do not close this page yet.</strong> Wait until it says all answers are uploaded."), true);
     flush();
-    for (let t = 0; t < 120 && (queue.length || flushing); t++) await sleep(500);
+    while ((queue.length || flushing) && fails < 2) await sleep(500);
+    if (run !== doneRun) return;
     let n = -1;
     if (!queue.length) { try { n = Object.keys((await apiGet(state.pid)).answers || {}).length; } catch (e) {} }
     const total = steps.filter((s) => !s.screen).length;
@@ -356,6 +379,8 @@ ol.rules { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
       syncNote(bi("還有作答沒有上傳成功，<strong>請不要關閉這個頁面</strong>。答案仍保存在這台裝置，請確認網路後按「重新上傳」；一直不行請把你的代號告訴研究人員。",
         "Some answers have not been uploaded; <strong>please do not close this page</strong>. They are still on this device; check your connection and press Upload again. If it keeps failing, tell the researcher your nickname."), true);
       $("resyncBtn").hidden = false;
+      while (queue.length || flushing) await sleep(1000);
+      if (run === doneRun) showDone();
     }
   }
   window.addEventListener("beforeunload", (e) => { if (uploading || queue.length) { e.preventDefault(); e.returnValue = ""; } });
